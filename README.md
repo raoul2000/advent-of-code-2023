@@ -1,6 +1,6 @@
 # Advent Of Code 2023
 
-Trying to solve [Advent Of Code 2023](https://adventofcode.com/2023) with clojure
+Trying to solve [Advent Of Code 2023](https://adventofcode.com/2023) with clojure.
 
 This is the third year I'm trying to solve *Advent of Code puzzle* in Clojure. let's see how far I will get this year !
 
