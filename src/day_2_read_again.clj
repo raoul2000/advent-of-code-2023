@@ -132,15 +132,46 @@ Game 5: 6 red, 1 blue, 3 green; 2 blue, 1 red, 2 green")
   ;; => {"blue" [[3 "blue"] [6 "blue"]], "red" [[4 "red"] [1 "red"]], "green" [[2 "green"] [2 "green"]]}
 
   (map (fn [[color color-set]]
-         (vector color (->> color-set))
-         ) 
+         (vector color (apply max (map first color-set))))
        (group-by second (second handful-1)))
-  
-  (reduce (fn [acc [color-count color-name]]
-            ) 
-          {}
-          (second handful-1)
-          )
 
+  (->> (second handful-1)                  ;; consider only the cube color info part
+       (group-by second)                   ;; group by color name
+       (map (fn [[color color-set]]        ;; replace values with max first
+              (vector color (apply max (map first color-set)))))
+       (reduce (fn [acc [_color-name n]]   ;; multiply them all
+                 (* acc n)) 1))
+
+
+  ;; We should have enough to start writing down the solution
+  ;;
+  )
+
+(defn compute-min-color-product [handful]
+  (->> (normalize-handful handful)
+       (second)
+       (group-by second)
+       (map (fn [[color color-set]]
+              (vector color (apply max (map first color-set)))))
+       (reduce (fn [acc [_color-name n]]
+                 (* acc n)) 1)))
+
+(comment
+  (compute-min-color-product "Game 1: 3 blue, 4 red; 1 red, 2 green, 6 blue; 2 green")
+  ;; => 48 .. this is the expected anwser
+  ;;
+  )
+
+(defn solution-1-part-2 [handful-list]
+  (->> (map compute-min-color-product handful-list)
+      (reduce + )))
+
+(comment
+    (solution-1-part-2 (s/split-lines sample-input-1))
+    ;; 👍 sample data give correct answer 2286
+    ;; let's try with puzzle data
+  
+  (solution-1-part-2 (s/split-lines (slurp "resources/day_2.txt")))
+    ;; => 84911  Yessss !! ⭐ 
   ;;
   )
