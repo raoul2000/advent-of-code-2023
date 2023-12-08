@@ -45,7 +45,7 @@
   [s]
   (->> s
        (s/split-lines)
-       (mapv seq)))
+       (mapv #(into [] (seq %)))))
 
 (comment
   (input->grid sample-input)
@@ -64,42 +64,180 @@
   )
 
 ;; we will surely need grid dimensions in several places 
-;; so why not create a map that contains the grid itself and its dimensions
+;; so instead of computing it each time we need it, why not create a map that contains the grid itself 
+;; and its dimensions ?
 
 (defn create-grid [s]
   (let [grid (input->grid s)]
-    (merge {:grid grid} (grid-dimensions grid))))
+    (merge {:matrix grid} (grid-dimensions grid))))
 
 (comment
-  (create-grid)
+  (create-grid sample-input)
   ;;
   )
 
 ;; now given a x,y coord, check if it matches a point inside the grid
 ;; we will choose 0,0 as the top left coords
 
-(defn in-grid? [grid-dims]
+(defn in-grid [{:keys [col-count row-count]}]
   (fn [[x y]]
-    (and (<= 0 x (dec (:col-count grid-dims)))
-         (<= 0 y (dec (:row-count grid-dims))))))
+    (and (<= 0 x (dec col-count))
+         (<= 0 y (dec row-count)))))
 
 (comment
-  (def f (in-grid? {:col-count 2, :row-count 3}))
+  (def f (in-grid (create-grid sample-input)))
   (f [1 1])
   ;;
   )
 
-;; get a seq of all coords when browsing the grid line by lines from top left
-;; to bottom right
+;; We will need to browse each position of the grid lines by lines, from top left to bottom right.
+;; Ket's create a function to get a seq of all coords when browsing the grid this way
 
-(defn coords-line-by-line [grid]
-  (let [width  (grid-dimensions grid)
-        height (grid-height grid)]
-    (for [x (range 1 (dec width))
-          y (range 1 (dec height))]
-      [x y])))
+(defn coords-line-by-line [{:keys [col-count row-count]}]
+  (for [y (range 0  row-count)
+        x (range 0  col-count)]
+    [x y]))
 
+(comment
+  (coords-line-by-line {:col-count 3 :row-count 3})
+  ;;
+  )
+
+;; for a given coord in the grid, we may have to check if a symbol is
+;; present in one of its "adjacent positions". 
+;; We need a function to create the list of adjacent positions given a pos
+;; and a grid
+
+(defn adjacent-coords [[x y] grid]
+  (let [pos-coll (for [dx (range -1 2)
+                       dy (range -1 2)]
+                   [(+ x dx) (+ y dy)])
+        in-grid? (in-grid grid)]
+    (->> pos-coll
+         (filter in-grid?)
+         (remove #{[x y]}))))
+
+
+(comment
+  (adjacent-coords [0 0] {:col-count 3 :row-count 3})
+  ;;
+  )
+
+;; Of course we will surely need to get the char at a given position too
 ;; get the char at the given coord
+
+(defn char-at [[x y] grid]
+  (-> (:matrix grid)
+      (nth y)
+      (nth x)))
+
+(comment
+  (def grid-1 (create-grid sample-input))
+
+  (char-at [0 0] grid-1)
+  (char-at [1 0] grid-1)
+  (char-at [0 4] grid-1)
+  (char-at [9 9] grid-1)
+  ;;
+  )
+
+;; And what about  a function that returns all adjacent chars ?
+
+(defn adjacent-char-coll [[x y] grid]
+  (map #(char-at % grid) (adjacent-coords [x y] grid)))
+
+(comment
+  (def grid-1 (create-grid sample-input))
+  (adjacent-char-coll [0 0] grid-1)
+  ;;
+  )
+
+;; And now that we get there, it would be silly to not create a function
+;; that returns TRUE if a pos has an adjacent symbol right ?
+
+(defn adjacent-symbol  [grid]
+  (fn [[x y]]
+    (some is-symbol-char? (adjacent-char-coll [x y] grid))))
+
+(comment
+  (def grid-1 (create-grid sample-input))
+  (def adjacent-symbol? (adjacent-symbol grid-1))
+  (adjacent-symbol? [0 0])
+  (adjacent-symbol? [2 0])
+  ;;
+  )
+
+
+
+;; ok ok, it seems we have everything we need to solve the first part of this puzzle
+;; But how ?
+;; The ideao is the following:
+;; - browse the grid char by char, line by line, from top-left to bottom right
+;; - for each pos
+;;     - if it is a digit
+;;        | - store it in the current-number (concat)
+;;        | - if no symbol has been found yet (symbol-found?)
+;;        |    |  - search for a symbol in adjacent positions
+;;        |    |  - if one is found
+;;        |    |     |   set symbol-found to true
+;;      else
+;;        | - if there is a current-number and symbol-found
+;;        |    |  - add this number to the list of valid parts
+;;        | - reset current-number
+;;        | -reset symbol-found 
+;;  loop on next pos
+;;
+(comment
+
+  ;; let's try to only get all numbers from the grid, without taking care of 
+  ;; adjacent symbols
+  (let [grid (create-grid sample-input)
+        state (merge grid {:current-number []
+                           :symbol-found   false
+                           :result        []})]
+
+    (reduce (fn [state pos]
+              (let [c (char-at pos state)]
+                #_(tap> {:state state :pos pos})
+                (if (is-digit-char? c)
+                  (update state :current-number conj c)
+                  (if-not (empty? (:current-number state))
+                    (-> state
+                        (update :result conj (Integer/parseInt (apply str (:current-number state))))
+                        (assoc  :current-number []))
+                    state))))
+            state
+            (coords-line-by-line grid)))
+
+  ;; this is working fine (at least on the sample data) : results contains
+  ;; a list of all integers found in the grid
+
+  ;; Now let's add digits only if there is an adjacent symbol
+
+  (let [grid             (create-grid sample-input)
+        state            (merge grid {:current-number []
+                                      :symbol-found   false
+                                      :result        []})
+        adjacent-symbol? (adjacent-symbol grid)]
+
+    (reduce (fn [state pos]
+              (let [c (char-at pos state)]
+                (if (is-digit-char? c)
+                  #_(let [adjacent-symbol (some is-symbol-char?)]
+                      (update state :current-number conj c))
+
+                  (if-not (empty? (:current-number state))
+                    (-> state ;; reset state
+                        (update :result conj (Integer/parseInt (apply str (:current-number state))))
+                        (assoc  :current-number [])
+                        (assoc  :symbol-found false))
+                    state))))
+            state
+            (coords-line-by-line grid)))
+
+
+  ;;
+  )
 
 
 
