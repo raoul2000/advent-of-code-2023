@@ -191,7 +191,7 @@
 
   ;; let's try to only get all numbers from the grid, without taking care of 
   ;; adjacent symbols
-  (let [grid (create-grid sample-input)
+  (let [grid  (create-grid sample-input)
         state (merge grid {:current-number []
                            :symbol-found   false
                            :result        []})]
@@ -217,29 +217,79 @@
   (let [grid             (create-grid sample-input)
         state            (merge grid {:current-number []
                                       :symbol-found   false
-                                      :result        []})
+                                      :result         []})
         adjacent-symbol? (adjacent-symbol grid)]
 
     (reduce (fn [state pos]
-              (let [c (char-at pos state)]
+              (let [c   (char-at pos state)]
+                (tap> {:state state :pos pos :found (:symbol-found state)})
                 (if (is-digit-char? c)
-                  #_(let [adjacent-symbol (some is-symbol-char?)]
-                      (update state :current-number conj c))
-
+                  (-> state
+                      (update :current-number conj c)
+                      (update :symbol-found (fn [already-found]
+                                              (if (not already-found)
+                                                (adjacent-symbol? pos)
+                                                already-found))))
                   (if-not (empty? (:current-number state))
                     (-> state ;; reset state
-                        (update :result conj (Integer/parseInt (apply str (:current-number state))))
+                        (update :result (fn [current-result]
+                                          (if (:symbol-found state)
+                                            (conj current-result (Integer/parseInt (apply str (:current-number state))))
+                                            current-result)))
                         (assoc  :current-number [])
                         (assoc  :symbol-found false))
                     state))))
             state
             (coords-line-by-line grid)))
 
+  ;; if we sum up all number in the result map key :result
+  ;; we find the expected result for the sample input 👍
+  ;; this is good !
 
+
+  ;; we can create our final function and call it with the puzzle input
   ;;
   )
 
+(defn select-valid-parts [lines]
+  (let [grid             (create-grid lines)
+        state            (merge grid {:current-number []
+                                      :symbol-found   false
+                                      :result         []})
+        adjacent-symbol? (adjacent-symbol grid)]
 
+    (reduce (fn [state pos]
+              (tap> {:state state :pos pos})
+              (let [c   (char-at pos state)]
+                (if (is-digit-char? c)
+                  (-> state
+                      (update :current-number conj c)
+                      (update :symbol-found   (fn [already-found]
+                                                (if (not already-found)
+                                                  (adjacent-symbol? pos)
+                                                  already-found))))
+                  (if-not (empty? (:current-number state))
+                    (-> state ;; reset state
+                        (update :result (fn [current-result]
+                                          (if (:symbol-found state)
+                                            (conj current-result (Integer/parseInt (apply str (:current-number state))))
+                                            current-result)))
+                        (assoc  :current-number [])
+                        (assoc  :symbol-found   false))
+                    state))))
+            state
+            (coords-line-by-line grid))))
+
+(defn solution-1 [lines]
+  (select-valid-parts lines)
+  #_(:result (select-valid-parts lines))
+  #_(reduce + (:result (select-valid-parts lines))))
+
+(comment
+  ;; test on sample input
+  (solution-1 (s/split-lines sample-input))
+  ;;
+  )
 
 
 
