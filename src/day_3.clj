@@ -281,15 +281,26 @@
             (coords-line-by-line grid))))
 
 (defn solution-1 [lines]
-  (select-valid-parts lines)
-  #_(:result (select-valid-parts lines))
-  #_(reduce + (:result (select-valid-parts lines))))
+  (reduce + (:result (select-valid-parts lines))))
 
 (comment
+
   ;; test on sample input
-  (solution-1 (s/split-lines sample-input))
+  (solution-1  sample-input)
+  ;; still good.
+  ;; and now, with the puzzle input .... (suspens)
+
+  (solution-1 (slurp "resources/day_3.txt"))
+  ;; => 535235 .. yessss !! one more ⭐
+
   ;;
   )
+
+
+;;;; part 2 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+
 
 
 
