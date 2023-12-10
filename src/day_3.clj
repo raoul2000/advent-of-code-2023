@@ -3,6 +3,10 @@
 
 ;; https://adventofcode.com/2023/day/3
 
+
+;;;; part 1 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
 ;; we must explore an 'engine-schematic' which is provided as grid
 ;; in this grid we have numbers, characters '.' and symbols characters 
 ;; which are not digits nor character '.'
@@ -45,7 +49,7 @@
   [s]
   (->> s
        (s/split-lines)
-       (mapv #(into [] (seq %)))))
+       (mapv vec )))
 
 (comment
   (input->grid sample-input)
@@ -259,7 +263,6 @@
         adjacent-symbol? (adjacent-symbol grid)]
 
     (reduce (fn [state pos]
-              (tap> {:state state :pos pos})
               (let [c   (char-at pos state)]
                 (if (is-digit-char? c)
                   (-> state
@@ -293,11 +296,53 @@
   (solution-1 (slurp "resources/day_3.txt"))
   ;; => 535235 .. yessss !! one more ⭐
 
+  ;; by curiosity, let's time it :
+  (time (solution-1 (slurp "resources/day_3.txt")))
+  ;; "Elapsed time: 119.155 msecs"
+
   ;;
   )
 
 
 ;;;; part 2 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; now we need to recognize 'gear' which is the char '*'
+
+(defn is-gear-char? [c]
+  (= \* c))
+
+;; Given position of a gear, we must explore all its adjacent positions
+;; searching for all digits that is included in a 'part number'.
+;; If we find EXACTLY 2 adjacent part number, multiply them and remember the
+;; result. At the end, sum them all to get the puzzle solution.
+;;
+;; ok...
+;;
+;; So first we can simplify this by noting that any number adjacent to a
+;; gear IS a part number. A gear is a special 'symbol' and any number adjacent
+;; to a 'symbol' is a part number (by definition).
+;;
+;; ok, so ?
+;; 
+;; we already have from the part 1:
+;; - a predicate to identify a digit : is-digit-char?
+;; - a function to get all adjacent positions of a given position : adjacent-coords
+
+;; We could use the part 1 solution and modify it so to store for each
+;; part number we find, the position of all adjacent gears (and ignoring any number
+;; not adjacent to a gear).
+;; Then with this result, we could process gear positions and find all 
+;; that appear exactly twice. Multiply those 2 adjacent part numbers and store the
+;; result. At the end sum them all.
+
+
+
+
+
+
+
+
+
 
 
 
