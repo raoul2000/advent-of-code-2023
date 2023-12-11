@@ -49,7 +49,7 @@
   [s]
   (->> s
        (s/split-lines)
-       (mapv vec )))
+       (mapv vec)))
 
 (comment
   (input->grid sample-input)
@@ -303,7 +303,6 @@
   ;;
   )
 
-
 ;;;; part 2 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; now we need to recognize 'gear' which is the char '*'
@@ -334,6 +333,84 @@
 ;; Then with this result, we could process gear positions and find all 
 ;; that appear exactly twice. Multiply those 2 adjacent part numbers and store the
 ;; result. At the end sum them all.
+
+
+;; Let's create a function that, given a digit position, returns the positions of
+;; all adjacent gear.
+
+(defn adjacent-gears
+  "Given a position returns the position of all adjacent gears or an empty seq
+   if there is no adjacent gear."
+  [[x y] grid]
+  (->> (adjacent-coords [x y] grid)
+       (filter (fn [adjacent-pos]
+                 (is-gear-char? (char-at adjacent-pos grid))))))
+
+
+(comment
+  (adjacent-gears [2 0]  grid-1)
+  (adjacent-gears [1 1]  grid-1)
+  ;;
+  )
+
+
+(comment
+
+  ;; let's modify the reduce operation from part 1 :
+
+  (let [grid         (create-grid sample-input)
+        state        (merge grid {:current-number []
+                                  :gear-found     #{}
+                                  :result         []})
+        ->int        (fn [char-coll]
+                       (Integer/parseInt (apply str char-coll)))]
+
+    (reduce (fn [state pos]
+              (let [c (char-at pos state)]
+                (if (is-digit-char? c)
+                  (-> state
+                      (update :current-number conj c)
+                      (update :gear-found into (adjacent-gears pos state)))
+                  (if-not (empty? (:current-number state))
+                    (-> state
+                        (update :result (fn [current-result]
+                                          (if-not (empty? (:gear-found state))
+                                            (conj current-result (vector (->int (:current-number state))
+                                                                         (:gear-found state)))
+                                            current-result)))
+                        (assoc :current-number [])
+                        (assoc :gear-found #{}))
+                    state))))
+            state
+            (coords-line-by-line grid)))
+
+
+  ;; for the sample input the :result key contains :
+  ;;
+  ;; [
+  ;;    [467 #{[3 1]}] 
+  ;;    [35 #{[3 1]}] 
+  ;;    [617 #{[3 4]}] 
+  ;;    [755 #{[5 8]}] 
+  ;;    [598 #{[5 8]}]
+  ;; ]
+  ;; Each pos is the coordinates of a gear and it is linked with the part number it is adjacent to.
+  ;; We must turn this vector into a map where each key is a gear pos, and each value is the list of related
+  ;; part numbers
+
+  ;; Note that with the sample input, each part number is adjacent to one gear, but this is a particular case.
+  ;; and so we should better use some other sample result 
+
+  (def result-1 [[467 #{[3 1]}] [35 #{[3 1]}] [617 #{[3 4]}] [755 #{[5 8]}] [598 #{[5 8]}]])
+
+
+  (reduce (fn [acc [part-number gear-pos-set]]
+            
+            
+            ) {} result-1)
+
+  ;;
+  )
 
 
 
