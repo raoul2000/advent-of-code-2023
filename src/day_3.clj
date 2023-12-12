@@ -21,14 +21,14 @@
 ;; we must select in this grid, only number which are adjacent to a symbol 
 ;; and forget about the others. Then sum them up all together
 
-;; I don't have any fancy idea to solve this pne (sorry)
+;; I don't have any fancy idea to solve this one (sorry)
 ;; The first idea is to browse the grid line by lines, and each time we 
 ;; find a digit, accumulate following digits on the same line : we have a number
-; Then for each number find all the adjacent positions and search for a symbol 
+;  Then for each number find all the adjacent positions and search for a symbol 
 ;; in each one.
 ;; this means we need a way to navigate a 2 dimensions grid.
 ;;
-;; let's try than
+;; let's try that
 
 ;; First we need to represent the grid
 
@@ -95,7 +95,7 @@
   )
 
 ;; We will need to browse each position of the grid lines by lines, from top left to bottom right.
-;; Ket's create a function to get a seq of all coords when browsing the grid this way
+;; Ket's create a function to get a seq of all coords when browsing the grid this way.
 
 (defn coords-line-by-line [{:keys [col-count row-count]}]
   (for [y (range 0  row-count)
@@ -107,9 +107,9 @@
   ;;
   )
 
-;; for a given coord in the grid, we may have to check if a symbol is
+;; For a given coord in the grid, we may have to check if a symbol is
 ;; present in one of its "adjacent positions". 
-;; We need a function to create the list of adjacent positions given a pos
+;; We need a function to create the list of adjacent positions given a position
 ;; and a grid
 
 (defn adjacent-coords [[x y] grid]
@@ -127,8 +127,7 @@
   ;;
   )
 
-;; Of course we will surely need to get the char at a given position too
-;; get the char at the given coord
+;; Of course we will surely need to get the char at a given position too.
 
 (defn char-at [[x y] grid]
   (-> (:matrix grid)
@@ -145,7 +144,7 @@
   ;;
   )
 
-;; And what about  a function that returns all adjacent chars ?
+;; And what about a function that returns all adjacent chars ?
 
 (defn adjacent-char-coll [[x y] grid]
   (map #(char-at % grid) (adjacent-coords [x y] grid)))
@@ -159,7 +158,10 @@
 ;; And now that we get there, it would be silly to not create a function
 ;; that returns TRUE if a pos has an adjacent symbol right ?
 
-(defn adjacent-symbol  [grid]
+(defn adjacent-symbol 
+  "Creates and returns a predicate function that, for a given grid,  returns true if a position 
+   in this grid has adjacent symbol."
+  [grid]
   (fn [[x y]]
     (some is-symbol-char? (adjacent-char-coll [x y] grid))))
 
@@ -173,7 +175,7 @@
 
 
 
-;; ok ok, it seems we have everything we need to solve the first part of this puzzle
+;; Ok ok, it seems we have everything we need to solve the first part of this puzzle
 ;; But how ?
 ;; The ideao is the following:
 ;; - browse the grid char by char, line by line, from top-left to bottom right
@@ -195,6 +197,7 @@
 
   ;; let's try to only get all numbers from the grid, without taking care of 
   ;; adjacent symbols
+
   (let [grid  (create-grid sample-input)
         state (merge grid {:current-number []
                            :symbol-found   false
@@ -213,7 +216,7 @@
             state
             (coords-line-by-line grid)))
 
-  ;; this is working fine (at least on the sample data) : results contains
+  ;; This is working fine (at least on the sample data) : results contains
   ;; a list of all integers found in the grid
 
   ;; Now let's add digits only if there is an adjacent symbol
@@ -249,7 +252,6 @@
   ;; if we sum up all number in the result map key :result
   ;; we find the expected result for the sample input 👍
   ;; this is good !
-
 
   ;; we can create our final function and call it with the puzzle input
   ;;
@@ -323,7 +325,7 @@
 ;;
 ;; ok, so ?
 ;; 
-;; we already have from the part 1:
+;; We already have from the part 1:
 ;; - a predicate to identify a digit : is-digit-char?
 ;; - a function to get all adjacent positions of a given position : adjacent-coords
 
@@ -360,7 +362,7 @@
 
   (let [grid         (create-grid sample-input)
         state        (merge grid {:current-number []
-                                  :gear-found     #{}
+                                  :gear-found     #{} ;; this is new
                                   :result         []})
         ->int        (fn [char-coll]
                        (Integer/parseInt (apply str char-coll)))]
@@ -398,31 +400,118 @@
   ;; We must turn this vector into a map where each key is a gear pos, and each value is the list of related
   ;; part numbers
 
-  ;; Note that with the sample input, each part number is adjacent to one gear, but this is a particular case.
-  ;; and so we should better use some other sample result 
+  ;; Basically we want to turn some data structure like this :
+  ;; [   
+  ;;   [A [2 4 6]]
+  ;;   [C [4 2]]
+  ;;   [R [8 6]]
+  ;; ]
+  ;; ... into something like this : 
+  ;; [ 
+  ;;   [2 [A C]]
+  ;;   [4 [A C]]
+  ;;   [6 [A R]]
+  ;;   [8 [R]]
+  ;; ]
+
+  ;; let's go step by step with some sample data
 
   (def result-1 [[467 #{[3 1]}] [35 #{[3 1]}] [617 #{[3 4]}] [755 #{[5 8]}] [598 #{[5 8]}]])
 
+  (def grouped (group-by first (mapcat (fn [[part-number gear-pos-set]]
+                                         (map #(vector % part-number) gear-pos-set)) result-1)))
 
-  (reduce (fn [acc [part-number gear-pos-set]]
-            
-            
-            ) {} result-1)
+  (def gear-pos-map (reduce-kv (fn [m k v]
+                                 (assoc m k (map second v))) {} grouped))
+  ;; result => 
+  ;; {
+  ;;      [3 1] (467 35), 
+  ;;      [3 4] (617), 
+  ;;      [5 8] (755 598)
+  ;; }
 
+  ;; Only [3 1] and [5 8] gears are adjacent to exactly 2 part number
+
+  (def winners (remove (fn [[k v]]
+                         (not= 2 (count v))) gear-pos-map))
+
+  ;; then multiply each part number pair and sum them all
+
+  (reduce (fn [acc [k v]]
+            (+ acc (apply * v)))  0 winners)
+
+  ;; ok we have the correct results for sample inputs.
+  ;; let's clean up a bit and create functions with all we did so for.
   ;;
   )
 
+(defn map-by-gear-pos [result]
+  (->> result
+       (mapcat (fn [[part-number gear-pos-set]]
+                 (map #(vector % part-number) gear-pos-set)))
+       (group-by first)
+       (reduce-kv (fn [m k v]
+                    (assoc m k (map second v))) {})))
 
+(comment
+  (def result-1 [[467 #{[3 1]}] [35 #{[3 1]}] [617 #{[3 4]}] [755 #{[5 8]}] [598 #{[5 8]}]])
+  (map-by-gear-pos result-1)
+  ;;
+  )
 
+(defn select-valid-parts-2 [lines]
+  (let [grid         (create-grid lines)
+        state        (merge grid {:current-number []
+                                  :gear-found     #{}
+                                  :result         []})
+        ->int        (fn [char-coll]
+                       (Integer/parseInt (apply str char-coll)))]
 
+    (reduce (fn [state pos]
+              (let [c (char-at pos state)]
+                (if (is-digit-char? c)
+                  (-> state
+                      (update :current-number conj c)
+                      (update :gear-found into (adjacent-gears pos state)))
+                  (if-not (empty? (:current-number state))
+                    (-> state
+                        (update :result (fn [current-result]
+                                          (if-not (empty? (:gear-found state))
+                                            (conj current-result (vector (->int (:current-number state))
+                                                                         (:gear-found state)))
+                                            current-result)))
+                        (assoc :current-number [])
+                        (assoc :gear-found #{}))
+                    state))))
+            state
+            (coords-line-by-line grid))))
 
+(defn keep-exactly-2-adjacents [m]
+  (remove (fn [[k v]]
+            (not= 2 (count v))) m))
 
+(defn solution-2 [lines]
+  (->> lines
+       select-valid-parts-2
+       :result
+       map-by-gear-pos
+       keep-exactly-2-adjacents
+       (reduce (fn [acc [_k v]]
+                 (+ acc (apply * v)))  0)))
 
+(comment
 
+  ;; test on sample input
+  (solution-2  sample-input)
+  ;; still good.
 
+  (solution-2 (slurp "resources/day_3.txt"))
+  ;; => 79844424 ⭐ yess !! first try !!
 
+  ;; by curiosity, let's time it :
+  (time (solution-2 (slurp "resources/day_3.txt")))
+  ;; "Elapsed time: 114.7777 msecs"
 
-
-
-
+  ;;
+  )
 
