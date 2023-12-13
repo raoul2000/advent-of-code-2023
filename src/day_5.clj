@@ -213,6 +213,46 @@ humidity-to-location map:
   )
 
 
+;;;; part 2 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;; We must now consider the Seeds line, not as a list of seeds, but as a list of pairs describing seeds range
+;; The first number is the start of the range, the second the length of the range.
+
+;; 🛑 looking at puzzle inputs values I suspect an issue !
+;; first pair is 3640772818 104094365 😮
+;; This range contains a lot of seeds !! We may need to do some optimisation here otherwise we'll
+;; wait for days before getting a result.
+
+;; Let's ignore this potential issue for now.
+;; So, this time we will create a list of sseds following new rules.
+
+
+(comment
+  ;; First range of the sample input :
+  (range 79N (+ 79N 14N))
+
+  (partition 2 [1 2 5 6])
+
+
+  (defn create-seeds-2 [input]
+    (->> (map #(biginteger %) (re-seq #"\d+" (first (s/split-lines input))))
+         (partition 2)
+         (map (fn [[start len]]
+                (range  start (+ start len))
+                ))))
+  
+  (create-seeds-2 "seeds: 79 14 55 13")
+  ;; with sample input : 
+  (def puzzle-input "seeds: 3640772818 104094365 1236480411 161072229 376099792 370219099 1590268366 273715765 3224333694 68979978 2070154278 189826014 3855332650 230434913 3033760782 82305885 837883389 177854788 2442602612 571881366")
+  (count (create-seeds-2 puzzle-input))
+  (create-seeds-2 puzzle-input)
+
+  ;;
+  )
+
+
+
 
 
 
