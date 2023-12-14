@@ -238,20 +238,109 @@ humidity-to-location map:
   (defn create-seeds-2 [input]
     (->> (map #(biginteger %) (re-seq #"\d+" (first (s/split-lines input))))
          (partition 2)
-         (map (fn [[start len]]
+         (mapcat (fn [[start len]]
                 (range  start (+ start len))
                 ))))
   
   (create-seeds-2 "seeds: 79 14 55 13")
   ;; with sample input : 
   (def puzzle-input "seeds: 3640772818 104094365 1236480411 161072229 376099792 370219099 1590268366 273715765 3224333694 68979978 2070154278 189826014 3855332650 230434913 3033760782 82305885 837883389 177854788 2442602612 571881366")
-  (count (create-seeds-2 puzzle-input))
-  (create-seeds-2 puzzle-input)
+  
+  (create-seeds-2 puzzle-input) ;; 💥 boom ... evaluating this form just hang the computer : too many values
+  ;; first range contains 104 094 365 seeds .. more than 104 millons !!
+
+  ;; couting all seeds in the range below takes 8 seconds
+  (time (count (create-seeds-2 "seeds: 3640772818 104094365")))
+
+  ;; Let's see what happen when we map this huge amount of seeds
+  )
+
+(defn create-seeds-2 [input]
+  (->> (map #(biginteger %) (re-seq #"\d+" (first (s/split-lines input))))
+       (partition 2)
+       (mapcat (fn [[start len]]
+                 (range  start (+ start len))))))
+
+(defn solution-2 [input]
+  (let [seeds (create-seeds-2 input)
+        maps  (create-maps-1 input)]
+    (->> maps
+         (reduce (fn [acc a-map]
+                   (map #(source->dest a-map %) acc)) seeds)
+         (reduce min))))
+
+(comment
+
+  ;; First check if the result is correct with sample inputs
+  (solution-2 sample-input)
+  ;; yes, it is 46 as expected
+
+  ;; Now let's play with a reduced set of seeds and the puzzle input data
+
+  #_(solution-2 (slurp "resources/day_5_reduced.txt"))
+
+  ;; Foooorget it !! 😭 .... take more than 10 minutes on my PC so there is no way
+  ;; we'll get a solution, with this kind of algorithm from the part 1.
+
+  ;; We need to think about another way ...
+
+  ;; Why not try to see if we can work not with values, but with ranges ? 
+
+  ;; Going back to sample input: 79 14
+  ;; 
+  ;; - seeds range [79 92] with  92 = (+ 79 (dec 14))) - (+ source-start (dec source-end))
+  ;;
+  ;; map 1 ------------------------------------------- seed-to-soil
+  ;;  [98 99] => [50 52] - dest = source - 48
+  ;;  [50 97] => [52 99] - dest = source + 2
+  ;; => IN : proecess Range [79 92] :
+  ;; - does not overlap with [98 99] : (no change)
+  ;; - is included in [50 97] : the input interval should be translated +2
+  ;; <== OUT [81 94]
+
+  ;; map 2 ------------------------------------------ soil-to-fertilizer
+  ;; [15 51] => [0 ... don't care] - dest = source -15   (15 = dest-start - source-start)
+  ;; [52 53] => [37 .. don't care] - dest = source -15 
+  ;; => IN : [81 94]
+  ;; - [15 51] - no overlap
+  ;; - [52 53] - no overlap
+  ;; <== OUT [81 94]
+
+  ;; map 3 ------------------------------------------- fertilizer-to-water
+  ;; [53 60] => [49 ...] - dest = source - 4
+  ;; [11 52] => [0  ...] - dest = source - 11
+  ;; [0   6] => [42 ...] - dest = source + 42
+  ;; [7  10] => [57 ...] - dest = source + 50
+  ;; ==> IN [81 94]
+  ;; no start range match
+  ;; <== OUT [81 94]
+
+  ;; map 4 -------------------------------------------- water-to-light
+  ;; [18 24] => [88 ...] - dest = source + 70
+  ;; [25 94] => [18 ...] - dest = source - 7
+  ;; ==> IN [81 94]
+  ;; - first does not match
+  ;; - match ! 
+  ;; <== OUT [74 87]
+
+  ;; map 5 -------------------------------------------- light-to-temperature
+  ;; [77 99] => [45 ...] => dest = source - 32
+  ;; [45 63] => [81 ...] => dest = source + 36
+  ;; [64 76] => [68 ...] => dest = source + 4
+  ;; ==> INT [74 87]
+  ;; - partial match 
+  ;;      [74 76] no modified
+  ;;      [77 87] -32 => [45 55] - mapping done, added to OUT
+  ;; - range 2 : [74 76] no match
+  ;; - range 3 : [74 76] is included in [64 76]
+  ;;      [74 76] +4 => [78 80] added to OUT
+  ;; <== OUT ( )
+
+
+
 
   ;;
   )
-
-
 
 
 
