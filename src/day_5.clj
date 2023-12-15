@@ -1,5 +1,6 @@
 (ns day-5
-  (:require [clojure.string :as s]))
+  (:require [clojure.string :as s]
+            [clojure.set :as set]))
 
 ;; https://adventofcode.com/2023/day/5
 
@@ -170,7 +171,7 @@ humidity-to-location map:
   ;; 💥 boum !! 
 
   ;; This is probably because this throws: 
-  (Integer/parseInt "3640772818") 
+  (Integer/parseInt "3640772818")
 
   ;; The puzzle input data contains number much more big than the sample inputs
 
@@ -239,13 +240,12 @@ humidity-to-location map:
     (->> (map #(biginteger %) (re-seq #"\d+" (first (s/split-lines input))))
          (partition 2)
          (mapcat (fn [[start len]]
-                (range  start (+ start len))
-                ))))
-  
+                   (range  start (+ start len))))))
+
   (create-seeds-2 "seeds: 79 14 55 13")
   ;; with sample input : 
   (def puzzle-input "seeds: 3640772818 104094365 1236480411 161072229 376099792 370219099 1590268366 273715765 3224333694 68979978 2070154278 189826014 3855332650 230434913 3033760782 82305885 837883389 177854788 2442602612 571881366")
-  
+
   (create-seeds-2 puzzle-input) ;; 💥 boom ... evaluating this form just hang the computer : too many values
   ;; first range contains 104 094 365 seeds .. more than 104 millons !!
 
@@ -334,9 +334,190 @@ humidity-to-location map:
   ;; - range 2 : [74 76] no match
   ;; - range 3 : [74 76] is included in [64 76]
   ;;      [74 76] +4 => [78 80] added to OUT
-  ;; <== OUT ( )
+  ;; <== OUT ( [45 55]  [78 80] )
+
+  ;; map 6 --------------------------------------------- temperature-to-humidity
+  ;; [69 69] => [70  ] => dest = source + 1
+  ;; [0  68] => [1 ..] => dest = source + 1
+  ;; ==> INT ( [45 55]  [78 80] )
+  ;; - slice 1 : no match for any of 2 input ranges
+  ;; - slice 2 : range [45 55] is included in [0 68]
+  ;;      [45 55] => [46 56]
+  ;; <== OUT ( [46 56]  [78 80] )
+
+  ;; map 7 ---------------------------------------------- humidity-to-location
+  ;; [56 92] => [60  ...] => dest = source + 4
+  ;; [93 96] => [56  ...] => dest = source - 37
+  ;; ==> IN  ( [46 56]  [78 80] )
+  ;; - slice 1:
+  ;;     - partial match for [46 56]
+  ;;             [46  55] : no change
+  ;;             [56] => [60]
+  ;;     - full match for [78 80] included in [56 92]
+  ;;            [78 80] => [82 84]
+  ;; - slice 2: no match
+  ;; <== OUT [46 55] [60] [82 84]
+  ;; 
+  ;; Lowest location is 46 👍
+  ;; This is the expected result for sample input
+
+  ;; Running this algo "by hand" helps to identify pieces of logic and names
+
+  ;; A map in the Almanac is a list of range shifting rules. Each shifting-rule is made of:
+  ;; - start: value that starts  the source range
+  ;; - end : values that ends the source range
+  ;; - shift-v : value to add to shift from source to dest range
+  )
+
+(defn create-shifting-rule [[dest-start source-start range-len]]
+  (let [source-end (+ source-start (dec range-len))
+        shift-v    (- dest-start source-start)]
+    (vector [source-start source-end] shift-v)))
+
+(comment
+
+  (create-shifting-rule [50 98 2])
+
+  ;; A range is a 2 items vector [start end]
+  ;; A range has a length of 1 is start = end
+  )
+
+(defn create-range [[start len]]
+  (vector start (+ start (dec len))))
+
+(comment
+
+  (create-range [79 14])
+  ;; Comparing 2 ranges, we may have to deal with following cases
+
+  ;; case 1 : no overlap
+  ;; A: ---------------------------[.......]-------------------------
+  ;; B: ----------[.......]------------------------------------------
+
+  ;; case 2 : included
+  ;; A : ---------------------------[.......]------------------------
+  ;; B1: ---------------------------[.......]------------------------
+  ;; B2: ----------------------------[.....]-------------------------
+
+  ;; case 3 : left overlap
+  ;; A : ---------------------------[.......]------------------------
+  ;; B : ---------------------[.......]------------------------------
+
+  ;; case 4 : right overlap
+  ;; A : ---------------------------[.......]------------------------
+  ;; B : -------------------------------[.......]--------------------
+
+  ;;
+  )
+
+(defn included?
+  "Returns TRUE if range 1 in included in range 2.
+   ```
+   Range 2 : -------------[....]----------
+   Range 1 : --------------[..]----------- true
+   Range 1 : -------------[....]---------- true
+   Range 1 : ----------[....]------------- false
+   ```
+   "
+  [[s1 e1] [s2 e2]]
+  (and (<= s2 s1)
+       (>= e2 e1)))
+
+(comment
+  (included? [1 1] [1 1])
+  (included? [1 6] [1 5])
+
+  ;; Then we will need a function to left and another for right overlap
+  ;; 🛑 wait ! .. Couldn't we use some of the function in the set namespace ? 
+
+  ;; No no, the problem is that set functions (like 'intersaction') work on set, where all values
+  ;; are stored, and we don't want that (because there are too much values), we want to work on ranges.
+
+  ;; ok, nevermind.
+  ;; Let's continue...
+  )
+
+(defn left-overlap?
+  "Returns TRUE is range 1 overlap left with range 2 :
+   
+   ```
+   Range 2 : -------------[..
+   Range 1 : --------[.......
+   ```
+   "
+  [[s1 e1] [s2 _e2]]
+  (and (> s2 s1)
+       (>= e1 s2)))
+
+(defn right-overlap?
+  "Returns TRUE is range 1 overlap right with range 2 :
+   
+   ```
+   Range 2 : ......]------------
+   Range 1 : ..........]-------
+   ```
+   "
+  [[s1 e1] [_s2 e2]]
+  (and (< e2 e1)
+       (>= e2 s1)))
+
+(comment
+  ;; Given a range and a shifting rule, let's create a function that 
+  ;; returns the result of applying the rule to the range. The result will be a seq
+  ;; of ranges.
 
 
+  ;;
+  )
+
+(defn apply-shift-rule [[cur-start cur-end :as current-range]
+                        [source-range shift-val]]
+  (cond
+    (included? current-range source-range)       (do
+                                                   (prn "included")
+                                                   {:remain []
+                                                    :mapped (mapv #(+ % shift-val) current-range)})
+
+    (left-overlap? current-range source-range)   (do
+                                                   (prn "left")
+                                                   (let [outside [cur-start
+                                                                  (dec (first source-range))]
+                                                         inside  [(first source-range)
+                                                                  (min cur-end
+                                                                       (second source-range))]]
+                                                     {:remain [outside]
+                                                      :mapped (mapv #(+ % shift-val) inside)}))
+
+    (right-overlap? current-range source-range)  (prn "right")
+    :else                                  (do
+                                             (prn "none")
+                                             current-range)))
+
+(comment
+  ;; After working on the apply-shift-rule function in TDD way, I think it would be much simpler to
+  ;; have an 'intersection' function that, given 2 ranges, return the sub-range in common and the otherones
+
+
+  ;; case 1 : no overlap
+  ;; A : ---------------------------[.......]-------------------------
+  ;; B1: ----------[.......]------------------------------------------ Eb < Sa  
+  ;; B2: ----------------------------------------[.......]------------ Ea < Sb
+  ;;                                                              ==>  Eb < Sa  OR Ea < Sb
+  ;; case 2 : included
+  ;; A : ---------------------------[.......]------------------------ 
+  ;; B1: ---------------------------[.......]------------------------ Sa = Sb AND Ea = Eb
+  ;; B2: ----------------------------[.....]------------------------- Sa < Sb AND Ea > Eb
+  ;;                                                              ==> Sa <= Sb AND Ea >= Eb 
+
+  ;; case 3 : left overlap
+  ;; A : ---------------------------[.......]------------------------
+  ;; B1 : ---------------------[.......]----------------------------- Sb < Sa AND Eb >= Sa   
+  ;; B2 : ---------------------[................]--------------------
+
+  ;; case 4 : right overlap
+  ;; A : ---------------------------[.......]------------------------
+  ;; B1 : -------------------------------[.......]------------------- Eb > Ea AND Sb <= Ea
+  ;; B2 : ---------------------[.................]-------------------
 
 
   ;;
@@ -344,4 +525,9 @@ humidity-to-location map:
 
 
 
-
+  (defn intersection
+    "Returns a vector where the first item is the range in range-1 included in range-2, and
+       as second item, the list of sub ranges in range-1 that do not belong to range-2."
+    [[s1 e1 :as range-1] [s2 e2 :as range-2]]
+  
+    [[(if (<= s1 s2) s2 s1)   (if (>= e1 e2) e2 e1)]])
