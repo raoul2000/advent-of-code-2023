@@ -437,16 +437,17 @@ humidity-to-location map:
   ;; Let's continue...
   )
 
+
 (defn left-overlap?
   "Returns TRUE is range 1 overlap left with range 2 :
    
    ```
-   Range 2 : -------------[..
-   Range 1 : --------[.......
+   Range 2 : -------------[...
+   Range 1 : --------[.........
    ```
    "
-  [[s1 e1] [s2 _e2]]
-  (and (> s2 s1)
+  [[s1 e1] [s2 e2]]
+  (and (< s1 s2)
        (>= e1 s2)))
 
 (defn right-overlap?
@@ -465,7 +466,6 @@ humidity-to-location map:
   ;; Given a range and a shifting rule, let's create a function that 
   ;; returns the result of applying the rule to the range. The result will be a seq
   ;; of ranges.
-
 
   ;;
   )
@@ -494,40 +494,121 @@ humidity-to-location map:
                                              current-range)))
 
 (comment
-  ;; After working on the apply-shift-rule function in TDD way, I think it would be much simpler to
+  ;; After working on the apply-shift-rule function , I think it would be much simpler to
   ;; have an 'intersection' function that, given 2 ranges, return the sub-range in common and the otherones
 
+  ;; Sa = Start A, Ea = End A, Sb = Start B, Eb = End B
 
   ;; case 1 : no overlap
   ;; A : ---------------------------[.......]-------------------------
   ;; B1: ----------[.......]------------------------------------------ Eb < Sa  
-  ;; B2: ----------------------------------------[.......]------------ Ea < Sb
-  ;;                                                              ==>  Eb < Sa  OR Ea < Sb
+  ;; B2: ----------------------------------------[.......]------------ Sb > Ea
+  ;;                                                     condition ==>  Eb < Sa  OR Ea < Sb
+  ;;                     split : mapped  = []
+  ;;                             remains = [Sb  Eb]
+
   ;; case 2 : included
   ;; A : ---------------------------[.......]------------------------ 
   ;; B1: ---------------------------[.......]------------------------ Sa = Sb AND Ea = Eb
   ;; B2: ----------------------------[.....]------------------------- Sa < Sb AND Ea > Eb
-  ;;                                                              ==> Sa <= Sb AND Ea >= Eb 
+  ;;                                                    condition ==> Sa <= Sb AND Ea >= Eb 
+  ;;                     split : mapped = [Sb Eb]
+  ;;                            remains = []
 
   ;; case 3 : left overlap
   ;; A : ---------------------------[.......]------------------------
-  ;; B1 : ---------------------[.......]----------------------------- Sb < Sa AND Eb >= Sa   
-  ;; B2 : ---------------------[................]--------------------
+  ;; B1 : ---------------------[.......]----------------------------- Sb < Sa AND Eb <= Ea   
+  ;;                     split : mapped  = [Sa Eb]
+  ;;                             remains = [Sb (Sa - 1)]
+  ;; B2 : ---------------------[................]-------------------- Sb < Sa AND Eb > Ea
+  ;;                     dplit : mapped  = [Sa Ea]
+  ;;                             remains = [Sb (Sa -1)] [(Ea + 1) Eb] 
 
   ;; case 4 : right overlap
   ;; A : ---------------------------[.......]------------------------
-  ;; B1 : -------------------------------[.......]------------------- Eb > Ea AND Sb <= Ea
-  ;; B2 : ---------------------[.................]-------------------
+  ;; B1 : -------------------------------[.......]------------------- Sb >= Sa  AND Eb > Ea 
+  ;;                    split : mapped  = [Sb Ea]
+  ;;                            remains = [(Ea + 1) Eb]
+  ;; B2 : ---------------------[.................]------------------- Sb < Sa AND Eb > Ea
+  ;;                    split : mapped  = [Sa Ea]                        (same as previous) 
+  ;;                            remains = [Sb (Sa -1)]  [(Ea + 1) Eb]    (same as previous)
+
+  ;; Let's create this 'intersection' function
+  )
+
+
+(defn intersection
+  "Returns a vector where the first item is the range in range-1 included in range-2, and
+   as second item, the list of sub ranges in range-1 that do not belong to range-2."
+  [[s1 e1 :as range-1] [s2 e2 :as range-2]]
+  (cond
+    (included? range-1 range-2)
+    [range-1 []]
+
+    (and (left-overlap?  range-1 range-2)
+         (right-overlap? range-1 range-2))
+    [[s2 e2] [[s1 (dec s2)] [(inc e2) e1]]]
+
+    (left-overlap?  range-1 range-2)
+    [[s2 e1] [[s1 (dec s2)]]]
+
+    (right-overlap?  range-1 range-2)
+    [[s1 e2] [[(inc e2) e1]]]
+
+    :else
+    [[] [range-1]]))
+
+
+
+(defn apply-shift-rule-1 [current-range [source-range shift-val]]
+  (let [[common-range remaining-ranges] (intersection current-range source-range)]
+    {:mapped (mapv #(+ % shift-val) common-range)
+     :remain remaining-ranges}))
+
+(comment
+  ;; What if instead of only one range to map, we have a seq of ranges ?
+
+  (defn update-if-not-empty [current v f]
+    (if (seq v)
+      (f current v)
+      current))
+
+  (update {:a []} :a update-if-not-empty nil conj)
+  (update {:a []} :a update-if-not-empty [2] conj)
+  (update {:a []} :a update-if-not-empty [2] into)
+
+  (defn apply-rule-on-ranges [rule ranges]
+    (reduce (fn [state cur-range]
+              (let [result-m (apply-shift-rule-1 cur-range rule)]
+                (-> state
+                    (update :remain update-if-not-empty (:remain result-m) into)
+                    (update :mapped update-if-not-empty (:mapped result-m) conj))))
+            {:remain [] :mapped []}
+            ranges))
+
+  (apply-rule-on-ranges [[29 94]  -7] [[1 10] [15 30] [37 47] [90 100]])
+  (apply-rule-on-ranges [[90 95]  -5] [[1 10] [15 30] [37 47] [90 100]])
+
+  ;; If we remember well, each map is a set of shifting rules. Each range is converted into
+  ;; a seq of mapped ranges (when there is a match) and a seq of unchange ranges
+
+  ;; And what about applying several shift rules in a row for a single  range ? 
+
+  (def range-1 [1 30])
+
+  (defn apply-rules-on-range [rules range]
+    (reduce (fn [state rule]
+              (if-not (seq (:remain state))
+                (reduced state)
+                (let [result-m (apply-shift-rule-1 range rule)]
+                  (-> state
+                      (update :remain update-if-not-empty (:remain result-m) into)
+                      (update :mapped update-if-not-empty (:mapped result-m) conj)))))
+            {:mapped [] :remain range}
+            rules))
+  (apply-rules-on-range [[[25 94] -1]  [[50 97] 2]] [1 30])
 
 
   ;;
   )
 
-
-
-  (defn intersection
-    "Returns a vector where the first item is the range in range-1 included in range-2, and
-       as second item, the list of sub ranges in range-1 that do not belong to range-2."
-    [[s1 e1 :as range-1] [s2 e2 :as range-2]]
-  
-    [[(if (<= s1 s2) s2 s1)   (if (>= e1 e2) e2 e1)]])
