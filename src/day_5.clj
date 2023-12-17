@@ -1,6 +1,5 @@
 (ns day-5
-  (:require [clojure.string :as s]
-            [clojure.set :as set]))
+  (:require [clojure.string :as s]))
 
 ;; https://adventofcode.com/2023/day/5
 
@@ -430,7 +429,7 @@ humidity-to-location map:
   ;; Then we will need a function to left and another for right overlap
   ;; 🛑 wait ! .. Couldn't we use some of the function in the set namespace ? 
 
-  ;; No no, the problem is that set functions (like 'intersaction') work on set, where all values
+  ;; No no, the problem is that set functions (like 'intersection') work on sets, where all values
   ;; are stored, and we don't want that (because there are too much values), we want to work on ranges.
 
   ;; ok, nevermind.
@@ -558,57 +557,182 @@ humidity-to-location map:
     :else
     [[] [range-1]]))
 
-
-
-(defn apply-shift-rule-1 [current-range [source-range shift-val]]
+(defn apply-shift-rule-1
+  "Applies the given shifting rule to the given range. Returns a map :
+   - `:mapped` : range that could be mapped. Empty vector when no mapping was possible
+   - `:remain` : vector of ranges that could not be mapped by the rule"
+  [current-range [source-range shift-val :as rule]]
   (let [[common-range remaining-ranges] (intersection current-range source-range)]
     {:mapped (mapv #(+ % shift-val) common-range)
      :remain remaining-ranges}))
 
+
+
+;; What if instead of only one range to map, we have a seq of ranges ?
+;; First a small helper function that (hopefully) will clarify ...
+
+(defn update-if-not-empty [current v f]
+  (if (seq v)
+    (f current v)
+    current))
+
 (comment
-  ;; What if instead of only one range to map, we have a seq of ranges ?
-
-  (defn update-if-not-empty [current v f]
-    (if (seq v)
-      (f current v)
-      current))
-
   (update {:a []} :a update-if-not-empty nil conj)
   (update {:a []} :a update-if-not-empty [2] conj)
   (update {:a []} :a update-if-not-empty [2] into)
 
-  (defn apply-rule-on-ranges [rule ranges]
-    (reduce (fn [state cur-range]
-              (let [result-m (apply-shift-rule-1 cur-range rule)]
-                (-> state
-                    (update :remain update-if-not-empty (:remain result-m) into)
-                    (update :mapped update-if-not-empty (:mapped result-m) conj))))
-            {:remain [] :mapped []}
-            ranges))
+  ;;
+  )
 
-  (apply-rule-on-ranges [[29 94]  -7] [[1 10] [15 30] [37 47] [90 100]])
-  (apply-rule-on-ranges [[90 95]  -5] [[1 10] [15 30] [37 47] [90 100]])
+(defn apply-rule-on-ranges-1 [rule {:keys [remain mapped] :as initial-state}]
+  (reduce (fn [state cur-range]
+            (let [result-m (apply-shift-rule-1 cur-range rule)]
+              (-> state
+                  (update :remain update-if-not-empty (:remain result-m) into)
+                  (update :mapped update-if-not-empty (:mapped result-m) conj))))
+          {:remain [] :mapped mapped}
+          remain))
 
-  ;; If we remember well, each map is a set of shifting rules. Each range is converted into
-  ;; a seq of mapped ranges (when there is a match) and a seq of unchange ranges
+(comment
+  (apply-rule-on-ranges-1 [[29 94]  -7] {:remain [] :mapped []})
+  (apply-rule-on-ranges-1 [[29 94]  -7] {:remain [[1 25] [20 100]] :mapped []})
+  (apply-rule-on-ranges-1 [[29 94]  -7] {:remain [[1 110]] :mapped []})
+  ;;
+  )
 
-  ;; And what about applying several shift rules in a row for a single  range ? 
+;; We can apply a rule to a sed of ranges, and we have now to do that for all rules in a map
 
-  (def range-1 [1 30])
+(defn apply-mapping [rules initial-state]
+  (reduce (fn [state cur-rule]
+            (apply-rule-on-ranges-1 cur-rule state))
+          initial-state
+          rules))
 
-  (defn apply-rules-on-range [rules range]
-    (reduce (fn [state rule]
-              (if-not (seq (:remain state))
-                (reduced state)
-                (let [result-m (apply-shift-rule-1 range rule)]
-                  (-> state
-                      (update :remain update-if-not-empty (:remain result-m) into)
-                      (update :mapped update-if-not-empty (:mapped result-m) conj)))))
-            {:mapped [] :remain range}
-            rules))
-  (apply-rules-on-range [[[25 94] -1]  [[50 97] 2]] [1 30])
+(comment
+  (apply-mapping [[[5 10] 2] [[20 30] 10]] {:remain [[1 6] [22 28]] :mapped []})
+  ;;
+  )
+
+;; Before being able to test this function  we must change the way we used to parse input
+;; in the first part. Now each shifting rule in a map is a 2 items vector.
+
+(defn create-maps-2 [input]
+  (->> input
+       create-maps-1
+       (map (fn [rules]
+              (map create-shifting-rule rules)))))
+(comment
+  (create-maps-2 sample-input)
+  ;;
+  )
+
+;; Same for input seeds which must now be considered as a set of ranges
+(defn create-initial-ranges [input]
+  (->> input
+       s/split-lines
+       first
+       (re-seq #"\d+")
+       (map #(Integer/parseInt %))
+       (partition 2)
+       (map create-range)))
+
+(comment
+  (create-initial-ranges sample-input)
+
+  ;; Now we should have enough to run manually the complete process with sample inputs
+
+  (def almanac (create-maps-2 sample-input))
+  (def initial-ranges (create-initial-ranges sample-input))
+
+  (def after-mapping (reduce (fn [state almanac-map]
+                               (if (empty? (:remain state))
+                                 (reduced state)
+                                 (let [{:keys [remain mapped] :as result} (apply-mapping almanac-map state)]
+                                   (prn state)
+                                   (prn almanac-map)
+                                   (prn result)
+                                   (prn "-----------------------")
+                                   {:remain (into remain mapped)
+                                    :mapped []})))
+                             {:remain initial-ranges :mapped []}
+                             almanac))
+
+  (apply min (flatten (:remain after-mapping)))
+  ;; => 46 this is the correct answer
+
+  ;; Let's create a function to solve part 2 (and cross finger)
+
+
 
 
   ;;
   )
 
+(defn solution-2-b [input]
+  (let [almanac (create-maps-2 input)
+        initial-ranges (create-initial-ranges input)
+        final-state (reduce (fn [state almanac-map]
+                              (if (empty? (:remain state))
+                                (reduced state)
+                                (let [{:keys [remain mapped] :as result} (apply-mapping almanac-map state)]
+                                  {:remain (into remain mapped)
+                                   :mapped []})))
+                            {:remain initial-ranges :mapped []}
+                            almanac)]
+    (apply min (flatten (:remain final-state)))))
+
+(comment
+
+  ;; still working ok with sample inputs
+  (solution-2-b sample-input)
+  ;; => 46
+
+  ;; and now ... trying with puzzle inputs 🎺🎺🎺
+
+  (solution-2-b (slurp "resources/day_5.txt"))
+  ;; arg !
+  ;; ; Execution error (NumberFormatException) at java.lang.NumberFormatException/forInputString (NumberFormatException.java:65).
+  ;; For input string: "3640772818"
+  ;; This number is in fact the first of my puzzle input and obiously I have forgotten
+  ;; to deal with *biginteger* when creating the initial range.
+  ;;
+  )
+
+(defn create-initial-ranges-1 [input]
+  (->> input
+       s/split-lines
+       first
+       (re-seq #"\d+")
+       (map #(biginteger %))
+       (partition 2)
+       (map create-range)))
+
+(defn solution-2-c [input]
+  (let [almanac (create-maps-2 input)
+        initial-ranges (create-initial-ranges-1 input)
+        final-state (reduce (fn [state almanac-map]
+                              (if (empty? (:remain state))
+                                (reduced state)
+                                (let [{:keys [remain mapped] :as result} (apply-mapping almanac-map state)]
+                                  {:remain (into remain mapped)
+                                   :mapped []})))
+                            {:remain initial-ranges :mapped []}
+                            almanac)]
+    (apply min (flatten (:remain final-state)))))
+
+(comment
+  ;; Thie biginteger is fixed, try again 
+  
+  (solution-2-c sample-input)
+  ;; => 46 ok ok 
+
+  ;; and now ... 
+
+  (solution-2-c (slurp "resources/day_5.txt"))
+  ;; => 148041808 
+  ;; 🎉^yes yes yes !! one ⭐ more
+
+  ;; This has been a long trip since line 1. The solution for part2 was not so obvious as I though
+  ;; and it took me a while to figure it out.
+  ;; To leave this day claen, I'll summarize the results in namespace day-5-final
+  )
