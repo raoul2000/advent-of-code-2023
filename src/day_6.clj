@@ -69,3 +69,93 @@ Distance:  9  40  200")
   ;; Now, this part 1 was too simple compared to previous days ... 
   ;; The part 2 may be muuch more complex I guess. Let's see
   )
+
+;;;; part 2 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; We must now consider only one pair, so the parsing operation
+;; must be modified to concat each number from line 1 and each numbers from line 2
+
+(comment
+  (->> (s/split-lines sample-input)
+       (map #(re-seq #"\d+" %))
+       (map #(apply str %))
+       (map #(Integer/parseInt %)))
+
+  (count (wins [71530 940200]))
+  ;; => 71503 This is the expected result for sample input
+  ;; By looking at puzzle input we will probably need biginteger 
+
+  ;; Let's try
+  ;;
+  )
+
+(defn parse-input-2 [input]
+  (->> (s/split-lines input)
+       (map #(re-seq #"\d+" %))
+       (map #(apply str %))
+       (map #(biginteger %))))
+
+(comment
+  (parse-input-2 sample-input)
+  ;;
+  )
+
+(defn solution-2 [input]
+  (->> input
+       parse-input-2
+       wins
+       count))
+
+(comment
+  ;; test on sample input
+  (solution-2  sample-input)
+  ;; => 71503 ... still good  ok
+
+  ;; ...and now ...
+  (solution-2 (slurp "resources/day_6.txt"))
+  ;; Yeah, right 🛑 .. too big number, too much computing. Maybe some sort of 
+  ;; quantic computer could do it, but my poor PC can't. We must think of a more clever
+  ;; way to get the answer
+
+  ;; Basically the pair for our puzzle input is : 
+  (parse-input-2 (slurp "resources/day_6.txt"))
+  ;; => (58819676 434104122191218) 😮 that's a lot
+
+
+  ;; Let's try doing some math :
+  
+  ;; x*(t - x) > d  with  0 < x < t
+  ;; - x^2 + t*x -d > 0
+  ;; a = -1,  b = t, c = -d
+  ;; Delta = b² - 4ac 
+  ;;       = t² - 4(-1)(-d)
+  ;;       = t² - 4d
+  (count (wins [30 200]))
+  ;; t = 30  d = 200
+  (- (* 30 30) (* 4 200)) ;; => 100
+  
+  ;; x1 = (-b - sqr(delta)) / (2a)
+  (/ (- (* -1 30) 10 ) -2) ;; => 20
+  ;; x2 = (-b + sqr(delta)) / (2a)
+  (/ (+ (* -1 30) 10) -2) ;; => 10
+  ;; count integers between 10 and 20 => 9
+  (- (dec 20) 10)
+
+  ;; same with puzzle inputs
+  ;; t = 58819676 d = 434104122191218)
+  (def t 58819676N)
+  (def d 434104122191218N)
+  (def a -1)
+  (def b t)
+  (def c (* -1 d))
+  (def delta (- (* b b) (* 4 (* a c))))
+
+  (def x1 (- (* -1 b) (Math/sqrt delta)))
+  (def x2 (+ (* -1 b) (Math/sqrt delta)))
+
+  (biginteger (- (dec x2) x1))
+  
+  
+  
+  ;;
+  )
