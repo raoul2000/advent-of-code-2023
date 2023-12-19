@@ -123,7 +123,7 @@ Distance:  9  40  200")
 
 
   ;; Let's try doing some math :
-  
+
   ;; x*(t - x) > d  with  0 < x < t
   ;; - x^2 + t*x -d > 0
   ;; a = -1,  b = t, c = -d
@@ -133,9 +133,9 @@ Distance:  9  40  200")
   (count (wins [30 200]))
   ;; t = 30  d = 200
   (- (* 30 30) (* 4 200)) ;; => 100
-  
+
   ;; x1 = (-b - sqr(delta)) / (2a)
-  (/ (- (* -1 30) 10 ) -2) ;; => 20
+  (/ (- (* -1 30) 10) -2) ;; => 20
   ;; x2 = (-b + sqr(delta)) / (2a)
   (/ (+ (* -1 30) 10) -2) ;; => 10
   ;; count integers between 10 and 20 => 9
@@ -148,14 +148,47 @@ Distance:  9  40  200")
   (def a -1)
   (def b t)
   (def c (* -1 d))
-  (def delta (- (* b b) (* 4 (* a c))))
+  (def delta (- (* b b) (* 4  a c)))
 
-  (def x1 (- (* -1 b) (Math/sqrt delta)))
-  (def x2 (+ (* -1 b) (Math/sqrt delta)))
+  (def x1 (/ (- (* -1 b) (Math/sqrt delta)) -2))
+  ;; x1 = 5.016638995342006E7
 
-  (biginteger (- (dec x2) x1))
+  (def x2 (/ (+ (* -1 b) (Math/sqrt delta)) -2))
+  ;; x2 = 8653286.046579942
+  (min x1 x2) ;; => x2 < x1
+
+  (def xi1 (biginteger (m/floor x1)))
+  (def xi2 (biginteger (m/ceil x2)))
+
+  (- xi2 xi1)
+  (biginteger (- (dec x1) x2))
+
+  (- 50166400 8653290)
+
+  (defn solve
+    "solve - x^2 + t*x -d > 0
+           a*x² + b*x + c > 0  
+     a = -1
+     b = t
+     c = -d
+     delta = b² - 4*a*c
+     "
+    [t d]
+    (let [delta (- (* t t) (* 4 -1 (* -1 d)))
+          x1    (/ (- (* -1 b) (Math/sqrt delta)) -2)
+          x2    (/ (+ (* -1 b) (Math/sqrt delta)) -2)]
+      {:delta   delta
+       :x1      x1
+       :x2      x2
+       :inter   [(min x1 x2) (max x1 x2)]
+
+       :inter2  [(biginteger (m/ceil  (min x1 x2))) 
+                 (biginteger (m/floor (max x1 x2)))]
+
+       ;;
+       }))
   
-  
-  
+  (solve 58819676N 434104122191218N)
+  (solve 30 200)
   ;;
   )
