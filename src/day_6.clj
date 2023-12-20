@@ -122,48 +122,19 @@ Distance:  9  40  200")
   ;; => (58819676 434104122191218) 😮 that's a lot
 
 
-  ;; Let's try doing some math :
+  ;; Ok so what do we want ?  Find all x for which 
+  ;;  x*(time - x) > distance
 
-  ;; x*(t - x) > d  with  0 < x < t
-  ;; - x^2 + t*x -d > 0
-  ;; a = -1,  b = t, c = -d
-  ;; Delta = b² - 4ac 
-  ;;       = t² - 4(-1)(-d)
-  ;;       = t² - 4d
-  (count (wins [30 200]))
-  ;; t = 30  d = 200
-  (- (* 30 30) (* 4 200)) ;; => 100
+  ;; let's do some math:
 
-  ;; x1 = (-b - sqr(delta)) / (2a)
-  (/ (- (* -1 30) 10) -2) ;; => 20
-  ;; x2 = (-b + sqr(delta)) / (2a)
-  (/ (+ (* -1 30) 10) -2) ;; => 10
-  ;; count integers between 10 and 20 => 9
-  (- (dec 20) 10)
+  ;; x*(time - x) > distance
+  ;; x*(time - x) - distance > 0
+  ;; x*time - x² - distance > 0
+  ;; - x² +x*time  - distance > 0
 
-  ;; same with puzzle inputs
-  ;; t = 58819676 d = 434104122191218)
-  (def t 58819676N)
-  (def d 434104122191218N)
-  (def a -1)
-  (def b t)
-  (def c (* -1 d))
-  (def delta (- (* b b) (* 4  a c)))
-
-  (def x1 (/ (- (* -1 b) (Math/sqrt delta)) -2))
-  ;; x1 = 5.016638995342006E7
-
-  (def x2 (/ (+ (* -1 b) (Math/sqrt delta)) -2))
-  ;; x2 = 8653286.046579942
-  (min x1 x2) ;; => x2 < x1
-
-  (def xi1 (biginteger (m/floor x1)))
-  (def xi2 (biginteger (m/ceil x2)))
-
-  (- xi2 xi1)
-  (biginteger (- (dec x1) x2))
-
-  (- 50166400 8653290)
+  ;; .. and we have here a quadratic inequality  🤓
+  ;; which can be solved if you remember your match classes. If you don't (like me)
+  ;; then you'll find plenty of info on the web or youtube.
 
   (defn solve
     "solve - x^2 + t*x -d > 0
@@ -171,24 +142,35 @@ Distance:  9  40  200")
      a = -1
      b = t
      c = -d
-     delta = b² - 4*a*c
+     delta = b² - 4ac
      "
     [t d]
     (let [delta (- (* t t) (* 4 -1 (* -1 d)))
-          x1    (/ (- (* -1 b) (Math/sqrt delta)) -2)
-          x2    (/ (+ (* -1 b) (Math/sqrt delta)) -2)]
+          x1    (/ (- (* -1 t) (Math/sqrt delta)) -2)
+          x2    (/ (+ (* -1 t) (Math/sqrt delta)) -2)]
       {:delta   delta
        :x1      x1
        :x2      x2
        :inter   [(min x1 x2) (max x1 x2)]
 
-       :inter2  [(biginteger (m/ceil  (min x1 x2))) 
+       :inter2  [(biginteger (m/ceil  (min x1 x2)))
                  (biginteger (m/floor (max x1 x2)))]
+
+       :result (inc (- (biginteger (m/floor (max x1 x2)))
+                       (biginteger (m/ceil  (min x1 x2)))))
 
        ;;
        }))
-  
-  (solve 58819676N 434104122191218N)
-  (solve 30 200)
+
+
+  ;; let's try with sample inputs
+  (:result (solve 71530 940200))
+  ;; => 71503 Good
+
+  ;; and now with the puzzle input
+  ;; Ah yes, no need to parse and everything, just does it
+  ;; manuelly (lazy)
+  (:result (solve 58819676N 434104122191218N))
+  ;; => 41513103 ....⭐ (one more)
   ;;
   )
