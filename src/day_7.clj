@@ -72,7 +72,7 @@ QQQJA 483")
   ;; Ok we are now able, given a card hand, to get its type. Now, we must also
   ;; be able to sort 2 or more hands of the same type, and for this, we must compare
   ;; each hand card in given order. So we need a way to compare two cards.
-  ;; cards are : A, K, Q, J, T, 9, 8, 7, 6, 5, 4, 3, or 2.
+  ;; Cards are : A, K, Q, J, T, 9, 8, 7, 6, 5, 4, 3, or 2.
 
   (def card-label [\A \K \Q \J \T \9 \8 \7 \6 \5 \4 \3 \2])
 
@@ -95,7 +95,10 @@ QQQJA 483")
 (def card-label [\A \K \Q \J \T \9 \8 \7 \6 \5 \4 \3 \2])
 
 
-(defn create-cards-comparator [ordered-cards]
+(defn create-cards-comparator
+  "Creates and returns a card comparator fn, given an ordered list of
+   cards, from higher to lower."
+  [ordered-cards]
   (fn [c1 c2]
     (if (= c1 c2)
       0
@@ -104,8 +107,128 @@ QQQJA 483")
         (if (< v1 v2) 1 -1)))))
 
 
-(defn compare-hands [h1 h2]
-  (if (= h1 h2)
-    0
-    1))
+(comment
+  (def card-comparator (create-cards-comparator card-label))
+
+  ;; Sort from smallest to highest hand
+  (sort-by identity card-comparator ["8" "A" "BAK"])
+
+  ;; So, we can now sort hands with the same type.
+
+  ;; To compare 2 hands, skip all identical cards starting from the first one
+  ;; until distincts cards are found. Then compare those 2 distinct cards
+  (->> (map vector "12abc" "12def")
+       (drop-while (fn [[left right]]
+                     (= left right)))
+       first)
+  ;;
+  )
+
+(defn create-hands-by-card-comparator
+  "Creates and returns a comparator fn for same type hands"
+  [card-comparator]
+  (fn [h1 h2]
+    (if (= h1 h2)
+      0
+      (let [[card-1 card-2] (->> (map vector h1 h2)
+                                 (drop-while (fn [[char-1 char-2]] (= char-1 char-2)))
+                                 first)]
+        (card-comparator card-1 card-2)))))
+
+(comment
+  ;; Now, given a list of cards hands we should : 
+  ;; - parse them 
+  ;; - assign to each hand its type
+  ;; - group the by type and for each one, sort them by card value
+  ;; - flattent the result into an array
+  ;; - using each item's index, compute the final result
+
+  ;; Parse first : 
+  (->> (re-seq #"(\w+) (\d+)" sample-input)
+       (map (fn [[_match hand bid]]
+              (vector hand (Integer/parseInt bid)))))
+  ;; => (["32T3K" 765] ["T55J5" 684] ["KK677" 28] ["KTJJT" 220] ["QQQJA" 483])
+
+  (def step-1 '(["32T3K" 765] ["T55J5" 684] ["KK677" 28] ["KTJJT" 220] ["QQQJA" 483]))
+
+  ;; assign hand type
+  (map #(conj % (hand-type (first %))) step-1)
+  ;; => (["32T3K" 765 6] ["T55J5" 684 4] ["KK677" 28 5] ["KTJJT" 220 5] ["QQQJA" 483 4])
+
+  (def step-2 '(["32T3K" 765 6] ["T55J5" 684 4] ["KK677" 28 5] ["KTJJT" 220 5] ["QQQJA" 483 4]))
+
+  (def card-comparator (create-cards-comparator card-label))
+  (def hand-by-card-comparator (create-hands-by-card-comparator card-comparator))
+
+  (reverse (sort-by first hand-by-card-comparator [["QQQJA" 483 4] ["T55J5" 684 4]]))
+
+  (def hand-type last)
+  (def cards first)
+
+  (->> (group-by hand-type step-2)
+       (map (fn [[type hands]]
+              (tap> (count hands))
+              (vector type (if (>  (count hands) 1)
+                             (sort-by cards hand-by-card-comparator hands)
+                             hands))))
+       (sort-by first >) ;; decreasing hond type
+       (reduce (fn [acc [_type hands]]
+                 (into acc hands)) [])
+       (reduce-kv (fn [acc k [_cards bid _type]]
+                    (+ acc (* bid (inc k)))) 0))
+  ;;=> 6440 👍 sample input give good result
+  ;; Let's clean up and create nice functions
+  ;;
+  )
+
+(defn parse-input
+  "Given puzzle input, returns a seq of pairs where the first one is the card hand and
+   the second the bid."
+  [input]
+  (->> (re-seq #"(\w+) (\d+)" input)
+       (map (fn [[_match hand bid]]
+              (vector hand (Integer/parseInt bid))))))
+
+(comment
+  (parse-input sample-input)
+  ;;
+  )
+
+(def assign-hand-type #(conj % (hand-type (first %))))
+
+(defn sort-hands-of-same-type [hand-by-card-comparator]
+  (fn [[type hands]]
+    (vector type (if (> (count hands) 1)
+                   (sort-by first hand-by-card-comparator hands)
+                   hands))))
+
+
+(defn solution-1 [input]
+  (let [card-comparator         (create-cards-comparator         card-label)
+        hand-by-card-comparator (create-hands-by-card-comparator card-comparator)
+        hand-type                last]
+    (->> input
+         parse-input
+         (map assign-hand-type)
+         (group-by hand-type)
+         (map (sort-hands-of-same-type hand-by-card-comparator))
+         ;; decreasing hand type order
+         (sort-by first >) 
+         ;; flatten and get rid of hand type key
+         (reduce (fn [acc [_type hands]] 
+                   (into acc hands)) [])
+         ;; compute result
+         (reduce-kv (fn [acc k [_cards bid _type]]
+                      (+ acc (* bid (inc k)))) 0)))
+  ;;
+  )
+
+(comment
+  (solution-1 sample-input)
+  ;; still ok with sample input
+
+  ;; Trying with puzzle input : 
+  (solution-1 (slurp "resources/day_7.txt"))
+  ;; => 250453939 ⭐ yes yes yes !! first shot !
+  )
 
