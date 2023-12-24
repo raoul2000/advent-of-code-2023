@@ -213,9 +213,9 @@ QQQJA 483")
          (group-by hand-type)
          (map (sort-hands-of-same-type hand-by-card-comparator))
          ;; decreasing hand type order
-         (sort-by first >) 
+         (sort-by first >)
          ;; flatten and get rid of hand type key
-         (reduce (fn [acc [_type hands]] 
+         (reduce (fn [acc [_type hands]]
                    (into acc hands)) [])
          ;; compute result
          (reduce-kv (fn [acc k [_cards bid _type]]
@@ -231,4 +231,140 @@ QQQJA 483")
   (solution-1 (slurp "resources/day_7.txt"))
   ;; => 250453939 ⭐ yes yes yes !! first shot !
   )
+
+;;;; part 2 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; the card J is now a Joker and not a Jack anymore. It evaluated as any card
+;; so to make the hand as high as possible.
+
+;; Basically hand "KK21J" turns into a 3 of a kind as J can 'become" a K.
+;; Other examples:
+;; - KQJ89 become  => KQK89 one pair
+;; - 9988J becomes => 99889 three of a kind
+
+;; So we must turns a hand that includes *one or more* J into the highest hand type possible.
+;;
+;;    J cards can pretend to be whatever card is best for the purpose 
+;;    of determining hand type
+;;
+;; Let's simplify and consider one J at a time. 
+;; 
+(comment
+  ;; hand optimisation when at least it contains one J
+
+  ;; with one J
+  ;; - high card       -> one pair
+  ;; - one pair        -> three of a kind
+  ;; - two pair        -> full house
+  ;; - three of a kind -> four of a kind
+  ;; - full house      -> four of a kind
+  ;; - four of a kind  -> five of a kind
+  ;; - five of a kind  -> nothing better
+  ;;
+  ;; If we keep using hand type values defined in part 1, we can create an optimisation map
+  )
+(def optimize-hand {7  6
+                    6  4
+                    5  3
+                    4  2
+                    3  2
+                    2  1
+                    1  1})
+(comment
+  (def hand "JAK9J")
+  #_(def hand "JAK9Q")
+
+  ;; before computing initial hand type we must remove J cards as they should not be included
+  ;; in the initial hand type evaluation
+  (s/replace hand #"J" "")
+
+  (hand-type (s/replace "JAAKJ" #"J" ""))
+  ;; => 7 => nothing
+  ;; This is now correct and the expected value was 6 = one-pair
+
+  ;; Now we want to find the initial hand type, that is, without taking into account
+  ;; J cards that could be present. If we still want to use the existing hand-type function
+  ;; we can't just remove them as this function only works for 5 cards hands.
+  ;; What we could do is replace Js with fake and unique placeholders
+
+  (hand-type (s/replace "xJAAKy" #"J" ""))
+  ;; => 6 this is correct
+
+  ;; let's define placeholder cars by position
+  ;;  0  1  2  3  4
+  ;;  \v \w \x \y \z  
+  ;; These letters do not match any valid card name so we are sure that they will never
+  ;; contribute to raise the hand type.
+  )
+
+(defn ignore-J [hand]
+  (map-indexed (fn [idx c]
+                 (if (= \J c)
+                   (char (+ idx (int \v)))
+                   c)) hand))
+(comment
+  (ignore-J "JAKJ2")
+
+  ;; With this new hand, we can compute the initial hand type.
+
+  (def hand-type-1 (hand-type (ignore-J hand)))
+
+  ;; If the hand contains at least one J, iterate through the optimisation
+  ;; map and stop after the given J count. 
+  )
+
+
+(defn optimized-hand-type [^String hand]
+  (let [count-j (count (filter #{\J} hand))]
+    (if (zero? count-j)
+      (hand-type hand)
+      (let [initial-hand-type  (hand-type (ignore-J hand))]
+        (nth (iterate (partial get optimize-hand) initial-hand-type) count-j)))))
+
+(comment
+  (optimized-hand-type "AAAAA")
+  (optimized-hand-type "AAAAJ")
+  (optimized-hand-type "JAK98")
+  (optimized-hand-type "JAAK9")
+  (optimized-hand-type "JAK9J")
+  (optimized-hand-type "JJJJJ")
+
+  ;; We should now be able to reuse the function from solution-1 and change the 
+  ;; we we compute card hands using now optimized-hand-type
+  )
+
+(def assign-hand-type-1 #(conj % (optimized-hand-type (first %))))
+
+(defn solution-2 [input]
+  (let [card-comparator         (create-cards-comparator         card-label)
+        hand-by-card-comparator (create-hands-by-card-comparator card-comparator)
+        hand-type                last]
+    (->> input
+         parse-input
+         (map assign-hand-type-1)
+         (group-by hand-type)
+         (map (sort-hands-of-same-type hand-by-card-comparator))
+         ;; decreasing hand type order
+         (sort-by first >)
+         ;; flatten and get rid of hand type key
+         (reduce (fn [acc [_type hands]]
+                   (into acc hands)) [])
+         ;; compute result
+         (reduce-kv (fn [acc k [_cards bid _type]]
+                      (+ acc (* bid (inc k)))) 0)))
+  ;;
+  )
+
+(comment
+  (solution-2 sample-input)
+  ;; => 5905 good 
+
+  ;; Trying with puzzle input : 
+  (solution-2 (slurp "resources/day_7.txt"))
+  ;; => aaarg 😭 (your answer is too high)
+  
+  )
+
+
+
 
