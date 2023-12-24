@@ -362,9 +362,44 @@ QQQJA 483")
   ;; Trying with puzzle input : 
   (solution-2 (slurp "resources/day_7.txt"))
   ;; => aaarg 😭 (your answer is too high)
+
+  ;; Wait, I forgot something !! 🚩
+  ;; Now the value of card J has changed and therefore the card comparator function
+  ;; previously used must be changed too.
+  ;; Let's do that and try again.
   
   )
 
+;; here we go : J at the end !!
+(def card-label-2 [\A \K \Q \T \9 \8 \7 \6 \5 \4 \3 \2 \J])
 
+(defn solution-2-b [input]
+  (let [card-comparator         (create-cards-comparator         card-label-2)
+        hand-by-card-comparator (create-hands-by-card-comparator card-comparator)
+        hand-type                last]
+    (->> input
+         parse-input
+         (map assign-hand-type-1)
+         (group-by hand-type)
+         (map (sort-hands-of-same-type hand-by-card-comparator))
+         ;; decreasing hand type order
+         (sort-by first >)
+         ;; flatten and get rid of hand type key
+         (reduce (fn [acc [_type hands]]
+                   (into acc hands)) [])
+         ;; compute result
+         (reduce-kv (fn [acc k [_cards bid _type]]
+                      (+ acc (* bid (inc k)))) 0)))
+  ;;
+  )
 
+(comment
+  (solution-2-b sample-input)
+  ;; => 5905 still good 
+
+  ;; Trying with puzzle input : 
+  (solution-2-b (slurp "resources/day_7.txt"))
+  ;; => 248652697    ⭐ yessssss !!!
+
+  )
 
