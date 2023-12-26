@@ -72,15 +72,42 @@ ZZZ = (ZZZ, ZZZ)")
   ;; Let's create nice functions
   )
 
-(defn create-network )
+(defn create-network [node-lines]
+  (reduce (fn [acc line]
+            (let [[[_ node-id left-id right-id]] (re-seq #"(\w\w\w) = \((\w\w\w), (\w\w\w)\)" line)]
+              (assoc acc node-id (vector left-id right-id)))) {} node-lines))
 
 (defn parse-input [input]
   (let [[moves _ & node-lines] (s/split-lines input)]
-    {:network      (reduce (fn [acc line]
-                             (let [[[_ node-id left-id right-id]] (re-seq #"(\w\w\w) = \((\w\w\w), (\w\w\w)\)" line)]
-                               (assoc acc node-id (vector left-id right-id)))) {} node-lines)
-     :moves        (seq moves)
+    {:network         (create-network node-lines)
+     :moves           (seq moves)
      :current-node-id "AAA"
-     :step-count   0}))
+     :step-count      0}))
 
+(defn create-navigator [network]
+  (fn [move current-node-id]
+    (let [[left-id right-id] (get network current-node-id)]
+      (if (= \L move) left-id right-id))))
 
+(defn solution-1 [input]
+  (let [initial-state (parse-input input)
+        navigate      (create-navigator (:network initial-state))]
+    (reduce (fn [state move]
+              (tap> state)
+              (if (= "ZZZ" (:current-node-id state))
+                (reduced (:step-count state))
+                (-> state
+                    (update :step-count       inc)
+                    (update :current-node-id  (partial navigate move)))))
+            initial-state
+            (cycle (:moves initial-state)))))
+
+(comment
+
+  (solution-1 sample-input)
+  ;; still ok with sample input
+
+  ;; Trying with puzzle input : 
+  (solution-1 (slurp "resources/day_8.txt"))
+  ;; => 15517 ⭐ one more star !
+  )
