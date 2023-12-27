@@ -9,3 +9,7 @@ I've tried to comment out each puzzle, following my thinking in the search for a
 Previous runs:
 - my solutions for [Advent Of Code 2021](https://github.com/raoul2000/advent-of-code-2021)
 - my solutions for [Advent Of Code 2022](https://github.com/raoul2000/advent-of-code-2022)
+
+## Links
+
+- [A visual representation of all puzzles](https://www.youtube.com/watch?v=vb7JcjZs_GM) 👍
