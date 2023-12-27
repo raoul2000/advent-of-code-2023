@@ -235,3 +235,30 @@
     ;; => 1708206096 ⭐ (but I don't deserve it 😞)
     ;;
   )
+
+;;;; part 2 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Extrapolating first value
+
+;; Could we just revert each history values and apply same functions as part 1
+;; Let's try
+
+(defn solution-2 [input]
+  (->> input
+       parse-sensor-history
+       (map reverse)
+       (map prediction-1)
+       (reduce +)))
+
+(comment
+  
+  (solution-2 sample-input)
+  ;; => 2 oke for sample input
+
+  (solution-2 (slurp "resources/day_9.txt"))
+  ;; => 1050 ⭐ good.
+
+  ;; Let's continue to day 10 and forget about day 9
+  )
+
+
