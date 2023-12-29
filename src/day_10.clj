@@ -7,8 +7,16 @@
 
 ;; We'll have to navigate into a 2x2 grid just like on day 3, so we may reuse
 ;; function from there.
-
 (def sample-input-1
+  "-L|F7
+7S-7|
+L|7||
+-L-J|
+L|-JF
+")
+
+
+(def sample-input-2
   "7-F7-
 .FJ|7
 SJLL7
@@ -16,13 +24,7 @@ SJLL7
 LJ.LJ
 ")
 
-(def sample-input-2
-  "-L|F7
-7S-7|
-L|7||
--L-J|
-L|-JF
-")
+
 ;; At each position in the grid, there is a char. It can be a :
 ;; - 'S' : the start position hiding a pipe char
 ;; - a pipe char
@@ -36,7 +38,7 @@ L|-JF
                       \L  #{:north :east}
                       \J  #{:north :west}
                       \7  #{:south :west}
-                      \F  #{:south :west}
+                      \F  #{:south :east}
                       \S  #{:north :south :east :west}})
 
 ;; Given a position with a pipe in it. It can connect in a directions only 
@@ -108,7 +110,6 @@ L|-JF
        (s/split-lines)
        (mapv vec)))
 
-
 (defn grid-dimensions
   "Given a grid, returns a map describing grid dimensions in terms of col and row count"
   [grid]
@@ -152,6 +153,14 @@ L|-JF
                  [:north [x  (dec y)]])
          (filterv (comp in-grid? second))
          (map #(conj % (char-at (second %) grid))))))
+
+
+(comment
+  (def grid-1 (create-grid sample-input-1))
+  (adjacent-coords [1 1] grid-1)
+  (char-at [1 2] grid-1)
+  ;;
+  )
 
 
 ;; By the way, we need a function to find S, the start position:
@@ -208,67 +217,77 @@ L|-JF
                 (connecting-pipes pipe))) neighbors))
 
   ;; turn it into a function
+  )
 
-  (defn find-next-step [grid current-pos prev-pos]
-    (let [pipe-at-pos   (char-at current-pos grid)
-          neighbors     (if prev-pos
-                          (remove #(= prev-pos (second %)) (adjacent-coords current-pos grid))
-                          ;; Dealing with S : no previous pos
-                          (adjacent-coords current-pos grid))]
-      (filter (fn [[direction _coords pipe]]
-                (when-let [connecting-pipes (matching-pipes pipe-at-pos direction)]
-                  (connecting-pipes pipe))) neighbors)))
 
-  (find-next-step  (create-grid (slurp "resources/day_10.txt"))  [0 0] [0 1])
-  (find-next-step  (create-grid (slurp "resources/day_10.txt"))  [10 10] nil)
-  (find-next-step  (create-grid (slurp "resources/day_10.txt"))  [108 25] nil)
+(defn find-possible-next-steps [grid current-pos prev-pos]
+  (let [pipe-at-pos   (char-at current-pos grid)
+        neighbors     (if prev-pos
+                        (remove #(= prev-pos (second %)) (adjacent-coords current-pos grid))
+                          ;; Dealing with S : no previous step
+                        (adjacent-coords current-pos grid))]
+    (filter (fn [[direction _coords pipe]]
+              (when-let [connecting-pipes (matching-pipes pipe-at-pos direction)]
+                (connecting-pipes pipe))) neighbors)))
+
+(comment
+  (def grid-puzzle (create-grid (slurp "resources/day_10.txt")))
+  (def grid-2 (create-grid sample-input-2))
+  (def grid-1 (create-grid sample-input-1))
+
+  (adjacent-coords [1 1] grid-1)
+  (find-possible-next-steps grid-2 [1 1] nil)
+  (find-possible-next-steps  grid-puzzle  [0 0] [0 1])
+  (find-possible-next-steps  grid-puzzle  [10 10] nil)
+  (find-possible-next-steps  grid-puzzle  [108 25] nil)
 
   ;; Ok, good. 
   ;; Starting from S we will have two path, each one connected to a different direction. 
   ;; We can follow these 2 paths and stop when they reach the same coordinates (the loop is closed)
   ;; At each ne step, increment a counter and return its values when stop condition is true
 
+  ;;
+  )
 
-  (defn push-to [xs x]
-    {:pre [(seq? xs)]}
-    (conj (butlast xs) x))
-
-  (push-to [1 2] 3)
-  (push-to '(2 1) 3)
-
-  ;; Let's define a state.
-  (def a-state {:grid       (create-grid (slurp "resources/day_10.txt"))
-                :step-count 1
-                :path      [[[108 26] nil]
-                            [[108 24] nil]]})
-
-  (find-S-pos (create-grid sample-input-1))
-  (find-next-step (create-grid sample-input-1) [0 2] nil)
-  (find-next-step (create-grid sample-input-1) [1 2] nil)
-  (def state-1 {:grid       (create-grid sample-input-1)
-                :step-count 1
-                :path      [[[1 2] nil]
-                            [[0 3] nil]]})
-  
-
-  (defn create-do-next-step [grid]
-    (fn [[current-pos prev-pos]]
-      (vector (second (first (find-next-step grid current-pos prev-pos)))
-              current-pos)))
+;; To find the next step, we must know where we come from: this is why we keep the previous step
+;; and there is no need to keep all steps
+(defn walk-next-step [grid [[_ current-coord :as current-step] [_ prev-coord]]]
+  (vector (->> (find-possible-next-steps grid current-coord prev-coord) ;; 
+               first)
+          current-step))
 
 
-  (defn walk-the-pipes [state]
-    (let [walk-next-step (create-do-next-step (:grid state))]
-      (tap> state)
-      (if (= (ffirst (:path state)) (first (second (:path state))))
-        state 
-        (recur (-> state
-                   (update :step-count inc)
-                   (update :path       (partial mapv walk-next-step)))))))
+(defn create-state [input]
+  (let [grid            (create-grid input)
+        start-pos       (find-S-pos grid)
+        [step-1 step-2] (find-possible-next-steps grid start-pos nil)]
+    {:grid            grid
+     :step-count      1
+     :path            [[step-1 nil] [step-2 nil]]
+     :pipe-walker-fn  (partial walk-next-step grid)}))
 
-  (walk-the-pipes state-1)
+(defn walk-the-pipes [state]
+  (let [[[[_ cur-coord-1] _] [[_ cur-coord-2] _]] (:path state)]
+    (if (=  cur-coord-1  cur-coord-2)
+      state
+      (recur (-> state
+                 (update :step-count inc)
+                 (update :path       (partial mapv (:pipe-walker-fn state))))))))
 
+(defn solution-1 [input]
+  (:step-count (walk-the-pipes (create-state input))))
 
+(comment
+  ;; Like usual let's try with sample input
+  (solution-1 sample-input-1)
+  ;; => 4 good
+
+  (solution-1 sample-input-2)
+  ;; => 8 .. still good
+
+  ;; ..and now  
+  (solution-1 (slurp "resources/day_10.txt"))
+  ;; => 6701 ⭐ yesss !!
 
   ;;
   )
