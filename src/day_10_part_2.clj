@@ -236,8 +236,103 @@ L--J.L7...LJS7F-7L7.
 ;;  OOOOL---JOLJOLJLJOOO
 
 ;; See [3 2] and [4 4] ? They can't be reached by the flood fill algorithm so they are missing in
-;; the final count.
-;; We did not solve part 2 
+;; the final count. 
+;; The solution could be to find adjacent tiles also in diagonal directions but if this would indeed 
+;; fix [4 4] it doesn't fix [3 2] which is isolated in an island.
+;; The floodfill algo implemented fails on island regions.
+
+
+  ;; we must think of another way to solve this one !
+
+  ;; Based on this post (https://gamedev.stackexchange.com/questions/141460/how-can-i-fill-the-interior-of-a-closed-loop-on-a-tile-map)
+  ;; we can try to scan each line of the grid and extract boundaries between external in internal network tiles.
+  ;; pseudo code:
+  ;; result = 0
+  ;; lineTileCount = 0
+  ;; for each tiles of a given line (from left to right)
+  ;;    if the tile belongs to the network
+  ;;       if the tile is an horizontal pipe,
+  ;;          just ignore it
+  ;;       if the tile is a pipe (i.e no horizontal one) or 'S'
+  ;;          store it in the boundaries list
+  ;;    else, 
+  ;;       if boundaries is not empty
+  ;;           lineTileCount = lineTileCount + 1
+  ;;    
+  ;;    if the boundaries list contains 2 coords
+  ;;       result = result + lineTileCount
+  ;;       lineTileCount = 0
+  ;;       clear boundaries list
+  ;;
+  ;; We could improve this algo by replacing the boundraies list with some flag called inside-network, but for debug
+  ;; purposes it could be more intresting to keep track of boundaries points.
+
+  (def state (create-loop sample-input-2-1))
+
+  ;; So, we are going to process all tiles, line by line, and for each one we will need
+  ;; - its coords (to check if it is part of the loop)
+  ;; - its content char 
+
+  (defn coords-by-line [{:keys [col-count row-count]}]
+    (partition row-count (for [y (range 0 col-count)
+                               x (range 0 row-count)]
+                           [x y])))
+
+  (coords-by-line (:grid state))
+
+  ;; Let's create some more helprs function
+
+  (defn in-loop? [{:keys [loop-tiles]} pos]
+    (loop-tiles pos))
+
+  (in-loop? state [0 0])
+  (in-loop? state [8 8])
+
+  (def horizontal-pipe? (partial = \-))
+  (horizontal-pipe? \c)
+  (horizontal-pipe? \-)
+
+  (defn is-pipe? [c]
+    (#{\| \- \L \J \7 \F \S} c))
+  (is-pipe? \i)
+  (is-pipe? \L)
+
+  (defn char-at [grid [x y]]
+    (-> (:matrix grid)
+        (nth y)
+        (nth x)))
+
+
+  ;; Ok, so we need a function to process a line of the grid. It will receive as input a predicates to define if a
+  ;; tile is included in the network path or not
+
+  (defn scan-grid-line [line part-of-loop? char-at]
+    (reduce (fn [{:keys [count-enclosed boundaries :as state]} pos]
+              (-> state
+                  (update :count-enclosed inc)))
+            {:count-enclosed 0
+             :boundaries     []} line))
+
+  (defn solution-2-b [input]
+    (let [state         (create-loop input)
+          is-in-loop?   (partial in-loop? (:loop-tiles state))
+          char-at-coord (partial char-at (:grid state))
+          char-at-tiles (fn [[x y]] (-> (get-in state [:grid :matrix])
+                                        (nth y)
+                                        (nth x)))]
+      (->> (coords-by-line (:grid state))
+           (map (fn [line]
+
+                  (reduce (fn [acc pos]
+                            (tap> pos)
+                            (-> acc
+                                (update :count inc)
+                                (update :boundaries conj (char-at-tiles pos))))
+                          {:count 0
+                           :boundaries []} line))))))
+
+  (solution-2-b sample-input-2-1)
+
 
 
 
