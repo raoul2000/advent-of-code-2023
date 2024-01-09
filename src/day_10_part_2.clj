@@ -273,14 +273,17 @@ L--J.L7...LJS7F-7L7.
   ;; - its coords (to check if it is part of the loop)
   ;; - its content char 
 
+
+
+
   (defn coords-by-line [{:keys [col-count row-count]}]
-    (partition row-count (for [y (range 0 col-count)
-                               x (range 0 row-count)]
+    (partition col-count (for [y (range 0 row-count)
+                               x (range 0 col-count)]
                            [x y])))
 
   (coords-by-line (:grid state))
 
-  ;; Let's create some more helprs function
+  ;; Let's create some more helpers function
 
   (defn in-loop? [{:keys [loop-tiles]} pos]
     (loop-tiles pos))
@@ -301,6 +304,84 @@ L--J.L7...LJS7F-7L7.
     (-> (:matrix grid)
         (nth y)
         (nth x)))
+
+  (char-at (:grid state) [0 11])
+
+  ;; Create a 2d array (grid) where each cell is a triplet:
+  ;; - tiles coords [x y]
+  ;; - char at pos
+  ;; - belong-to-loop flag
+  ;; - is-pipe flag
+  ;; - is-horizontal-pipe flag
+
+  (map (fn [line]
+         (map (fn [[x y :as pos]]
+                (let [c (char-at (:grid state) [x y])]
+                  (vector pos
+                          c
+                          (boolean (in-loop? state pos))
+                          (boolean (is-pipe? c))
+                          (boolean (horizontal-pipe? c)))))  line))
+       (coords-by-line (:grid state)))
+
+
+  ;; Below we extract boundaries coords pairs for each line
+
+  (map (fn [line]
+         (->> (reduce (fn [acc pos]
+                        (let [c           (char-at (:grid state) pos)
+                              is-boundary (and (in-loop? state pos)
+                                               (not (horizontal-pipe? c)))]
+                          (cond-> acc
+                            is-boundary (conj pos))))
+                      []
+                      line)
+              (partition 2)))
+       (coords-by-line (:grid state)))
+
+  ;; But then we can't just count tiles between thoses boundaries pairs because they also include
+  ;; horizontal pipes, anb we don't want to count them
+
+  (map (fn [line]
+         (->> (reduce (fn [acc pos]
+                        (let [c           (char-at (:grid state) pos)
+                              is-boundary (and (in-loop? state pos)
+                                               (not (horizontal-pipe? c)))]
+                          (cond-> acc
+                            is-boundary (conj pos))))
+                      []
+                      line)
+              (partition 2)
+              (map (fn [[[x1 y1] [x2 y2]]] 
+                     (mapv #(char-at (:grid state) (vector % y1)) (range (inc x1) x2))
+                     ))
+              ))
+       (coords-by-line (:grid state)))
+
+
+  ;; It seems we have enough to implement the algo : each line of the above created grid should be reduced to the number
+  ;; of internal tiles for this line
+
+  #_(map (fn [line]
+           (reduce
+            (fn [{:keys [inner-count boundaries inside] :as acc} [[x y] _c in-loop is-pipe is-horizontal-pipe]]
+              (-> acc
+                  (update :inner-count (fn [prev]
+                                         (if (and (not in-loop)
+                                                  inside)
+                                           (inc prev)
+                                           prev)))
+                  (update :inside (fn [prev-inside]
+                                    (cond
+                                      (and in-loop (not is-horizontal-pipe)))))))
+            {:inner-count 0
+             :inside      false
+             :boundaries []}
+            line)))
+
+
+
+
 
 
   ;; Ok, so we need a function to process a line of the grid. It will receive as input a predicates to define if a
